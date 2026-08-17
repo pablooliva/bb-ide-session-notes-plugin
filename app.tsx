@@ -6,7 +6,7 @@
 // The split exists because `messageAction.run` is a plain callback with no rpc
 // client (`useRpc` is a hook), so it cannot talk to the backend directly. It
 // posts the anchor to the plugin's own HTTP route instead.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type Ref } from "react";
 import {
   definePluginApp,
   Markdown,
@@ -93,7 +93,17 @@ const styles = {
     lineHeight: 1.5,
   },
   hint: { fontSize: "0.6875rem", color: "var(--muted-foreground)", marginTop: "0.25rem" },
-  deleteRow: { marginTop: "0.375rem" },
+  actionRow: { marginTop: "0.375rem", display: "flex", gap: "0.375rem" },
+  editButton: {
+    font: "inherit",
+    fontSize: "0.75rem",
+    color: "var(--foreground)",
+    background: "transparent",
+    border: "1px solid var(--border)",
+    borderRadius: "var(--radius)",
+    padding: "0.125rem 0.5rem",
+    cursor: "pointer",
+  },
   deleteButton: {
     font: "inherit",
     fontSize: "0.75rem",
@@ -108,12 +118,60 @@ const styles = {
   error: { fontSize: "0.75rem", color: "var(--destructive)" },
 } as const;
 
+// One editor, two callers: composing a new note and editing an existing one.
+// Same keys in both, so there is nothing to relearn between them.
+function NoteEditor({
+  value,
+  cancelLabel,
+  autoFocus,
+  textareaRef,
+  onChange,
+  onSave,
+  onCancel,
+}: {
+  value: string;
+  cancelLabel: string;
+  autoFocus?: boolean;
+  textareaRef?: Ref<HTMLTextAreaElement>;
+  onChange: (value: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <>
+      <textarea
+        ref={textareaRef}
+        autoFocus={autoFocus}
+        style={styles.input}
+        value={value}
+        maxLength={BODY_MAX}
+        placeholder="Your note… (markdown)"
+        onChange={(event) => onChange(event.target.value)}
+        onKeyDown={(event) => {
+          // Enter inserts a newline so lists and fenced code can be typed;
+          // saving moves to the modifier chord.
+          if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault();
+            onSave();
+          } else if (event.key === "Escape") {
+            event.preventDefault();
+            onCancel();
+          }
+        }}
+      />
+      <div style={styles.hint}>⌘/Ctrl + Enter to save · Esc to {cancelLabel}</div>
+    </>
+  );
+}
+
 function NotesPanel({ threadId }: PluginThreadPanelProps) {
   const rpc = useRpc<typeof rpcContract>();
   const [notes, setNotes] = useState<Note[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [text, setText] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -166,8 +224,27 @@ function NotesPanel({ threadId }: PluginThreadPanelProps) {
     }
   };
 
+  const startEdit = (note: Note) => {
+    setSelectedId(null);
+    setEditText(note.body);
+    setEditingId(note.id);
+  };
+
+  const saveEdit = async (id: string) => {
+    const body = editText.trim();
+    if (body.length === 0) return;
+    setEditingId(null);
+    try {
+      await rpc.call("update", { threadId, id, body });
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save the edit.");
+    }
+  };
+
   const remove = async (id: string) => {
     setSelectedId(null);
+    setEditingId(null);
     try {
       await rpc.call("remove", { threadId, id });
       await refresh();
@@ -192,23 +269,43 @@ function NotesPanel({ threadId }: PluginThreadPanelProps) {
   const rows = notes.map((note) => (
     <li key={note.id}>
       {anchorLine(note.messageRole, note.anchorPreview)}
-      <div
-        style={styles.note}
-        onClick={(event) => {
-          // Rendered markdown can contain links; clicking one should follow it
-          // rather than also toggling the delete button.
-          if ((event.target as HTMLElement).closest("a")) return;
-          setSelectedId(selectedId === note.id ? null : note.id);
-        }}
-      >
-        <Markdown content={note.body} />
-      </div>
-      {selectedId === note.id && (
-        <div style={styles.deleteRow}>
-          <button type="button" style={styles.deleteButton} onClick={() => void remove(note.id)}>
-            Delete note
-          </button>
-        </div>
+      {editingId === note.id ? (
+        <NoteEditor
+          value={editText}
+          cancelLabel="cancel"
+          autoFocus
+          onChange={setEditText}
+          onSave={() => void saveEdit(note.id)}
+          onCancel={() => setEditingId(null)}
+        />
+      ) : (
+        <>
+          <div
+            style={styles.note}
+            onClick={(event) => {
+              // Rendered markdown can contain links; clicking one should follow
+              // it rather than also opening the action row.
+              if ((event.target as HTMLElement).closest("a")) return;
+              setSelectedId(selectedId === note.id ? null : note.id);
+            }}
+          >
+            <Markdown content={note.body} />
+          </div>
+          {selectedId === note.id && (
+            <div style={styles.actionRow}>
+              <button type="button" style={styles.editButton} onClick={() => startEdit(note)}>
+                Edit
+              </button>
+              <button
+                type="button"
+                style={styles.deleteButton}
+                onClick={() => void remove(note.id)}
+              >
+                Delete note
+              </button>
+            </div>
+          )}
+        </>
       )}
     </li>
   ));
@@ -219,26 +316,14 @@ function NotesPanel({ threadId }: PluginThreadPanelProps) {
       0,
       <li key="draft">
         {anchorLine(draft.messageRole, draft.anchorPreview)}
-        <textarea
-          ref={inputRef}
-          style={styles.input}
+        <NoteEditor
           value={text}
-          maxLength={BODY_MAX}
-          placeholder="Your note… (markdown)"
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={(event) => {
-            // Enter inserts a newline so lists and fenced code can be typed;
-            // saving moves to the modifier chord.
-            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-              event.preventDefault();
-              void save();
-            } else if (event.key === "Escape") {
-              event.preventDefault();
-              void discard();
-            }
-          }}
+          cancelLabel="discard"
+          textareaRef={inputRef}
+          onChange={setText}
+          onSave={() => void save()}
+          onCancel={() => void discard()}
         />
-        <div style={styles.hint}>⌘/Ctrl + Enter to save · Esc to discard</div>
       </li>,
     );
   }

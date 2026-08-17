@@ -15,8 +15,9 @@ swept when the thread ends.
 (speech-bubble icon). A **Notes** tab opens in the thread's right panel with a
 box already anchored to that message. **Cmd/Ctrl + Enter saves, Esc discards**
 — plain Enter inserts a newline, so lists and fenced code can be typed. Click a
-saved note to reveal its **Delete note** button. Notes are listed in timeline
-order, so reading the panel top to bottom walks the thread.
+saved note to reveal **Edit** and **Delete note**; editing reuses the same box
+and the same keys. Notes are listed in timeline order, so reading the panel top
+to bottom walks the thread.
 
 Note bodies are **markdown**, rendered through bb's own chat renderer. Bodies
 are stored raw, so this is a display concern only — nothing to migrate, and
@@ -35,6 +36,11 @@ bb note add <text> [--seq <n>]   # default anchor: the end of the thread
 bb note list
 bb note rm <id>
 ```
+
+There is deliberately **no `bb note edit`**. Editing is panel-only: the CLI
+exists so scripts and hooks can drop markers, and a marker a script can later
+rewrite is a more stateful thing than that. Keeping it out also keeps the
+agent-facing surface as narrow as it was.
 
 ## Settings
 

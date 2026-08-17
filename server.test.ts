@@ -154,6 +154,73 @@ describe("capture", () => {
   });
 });
 
+describe("edit", () => {
+  async function seed() {
+    const { harness } = load();
+    await addViaPanel(
+      harness,
+      { sourceSeqEnd: 40, messageRole: "assistant", anchorPreview: "x" },
+      "original",
+    );
+    const [note] = (await list(harness)).notes;
+    return { harness, note };
+  }
+
+  it("rewrites the body and leaves the anchor alone", async () => {
+    const { harness, note } = await seed();
+    await expect(
+      harness.callRpc("update", { threadId: THREAD, id: note.id, body: "revised" }),
+    ).resolves.toEqual({ updated: true });
+
+    const { notes } = await list(harness);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatchObject({
+      id: note.id,
+      body: "revised",
+      sourceSeqEnd: 40,
+      messageRole: "assistant",
+      anchorPreview: "x",
+    });
+  });
+
+  it("refuses an edit addressed to the wrong thread", async () => {
+    const { harness, note } = await seed();
+    await expect(
+      harness.callRpc("update", { threadId: OTHER, id: note.id, body: "hijacked" }),
+    ).resolves.toEqual({ updated: false });
+    expect((await list(harness)).notes[0].body).toBe("original");
+  });
+
+  it("refuses an empty body rather than blanking the note", async () => {
+    const { harness, note } = await seed();
+    await expect(
+      harness.callRpc("update", { threadId: THREAD, id: note.id, body: "   " }),
+    ).resolves.toEqual({ updated: false });
+    expect((await list(harness)).notes[0].body).toBe("original");
+  });
+
+  it("reports a missing id instead of silently succeeding", async () => {
+    const { harness } = await seed();
+    await expect(
+      harness.callRpc("update", { threadId: THREAD, id: "nope", body: "x" }),
+    ).resolves.toEqual({ updated: false });
+  });
+
+  it("signals so other open panels refresh", async () => {
+    const { harness, note } = await seed();
+    const before = harness.inspection.realtimeSignals.length;
+    await harness.callRpc("update", { threadId: THREAD, id: note.id, body: "revised" });
+    expect(harness.inspection.realtimeSignals.length).toBe(before + 1);
+  });
+
+  it("keeps markdown intact through a round trip", async () => {
+    const { harness, note } = await seed();
+    const body = "- one\n- two\n\n```ts\nconst x = 1;\n```";
+    await harness.callRpc("update", { threadId: THREAD, id: note.id, body });
+    expect((await list(harness)).notes[0].body).toBe(body);
+  });
+});
+
 describe("delete", () => {
   it("removes a note and refuses a delete addressed to the wrong thread", async () => {
     const { harness } = load();

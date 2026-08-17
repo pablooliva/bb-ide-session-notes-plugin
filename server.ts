@@ -68,6 +68,10 @@ export const rpcContract = defineRpcContract({
     input: z.object({ threadId: z.string(), body: z.string() }).strict(),
     output: z.object({ created: z.boolean() }),
   },
+  update: {
+    input: z.object({ threadId: z.string(), id: z.string(), body: z.string() }).strict(),
+    output: z.object({ updated: z.boolean() }),
+  },
   remove: {
     input: z.object({ threadId: z.string(), id: z.string() }).strict(),
     output: z.object({ removed: z.boolean() }),
@@ -136,6 +140,7 @@ export default function plugin(bb: BbPluginApi) {
        (id, thread_id, source_seq_end, message_role, anchor_preview, body, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
   );
+  const updateNote = db.prepare(`UPDATE notes SET body = ? WHERE id = ? AND thread_id = ?`);
   const deleteNote = db.prepare(`DELETE FROM notes WHERE id = ? AND thread_id = ?`);
   const deleteThreadNotes = db.prepare(`DELETE FROM notes WHERE thread_id = ?`);
   const deleteOlderThan = db.prepare(`DELETE FROM notes WHERE created_at < ?`);
@@ -191,6 +196,18 @@ export default function plugin(bb: BbPluginApi) {
       await bb.storage.kv.delete(draftKey(threadId));
       signal(threadId);
       return { created: true };
+    },
+
+    // Editing is panel-only by design; `bb note` has no edit subcommand, so a
+    // script cannot rewrite a marker it dropped earlier.
+    update({ threadId, id, body }) {
+      const text = body.trim();
+      if (text.length === 0) return { updated: false };
+      // The thread_id predicate is the same guard as remove: a note can only be
+      // changed from the thread that owns it.
+      const updated = updateNote.run(text.slice(0, BODY_MAX), id, threadId).changes > 0;
+      if (updated) signal(threadId);
+      return { updated };
     },
 
     remove({ threadId, id }) {
