@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   definePluginApp,
+  Markdown,
   useRealtime,
   useRpc,
   type PluginThreadPanelProps,
@@ -68,25 +69,28 @@ const styles = {
     marginBottom: "0.25rem",
   },
   role: { fontWeight: 600, marginRight: "0.375rem" },
-  // The note itself is deliberately unlike agent output: accented left rule,
-  // card background, normal foreground weight.
+  // Note bodies render through the host's chat markdown renderer, so they no
+  // longer read as distinct from agent output typographically. The accented
+  // left rule, card background, and role label carry that distinction instead.
   note: {
     borderLeft: "3px solid var(--accent-foreground, var(--foreground))",
     background: "var(--card)",
     borderRadius: "var(--radius)",
     padding: "0.5rem 0.625rem",
     cursor: "pointer",
-    whiteSpace: "pre-wrap",
     wordBreak: "break-word",
   },
   input: {
     width: "100%",
+    minHeight: "4.5rem",
+    resize: "vertical",
     background: "var(--background)",
     color: "var(--foreground)",
     border: "1px solid var(--border)",
     borderRadius: "var(--radius)",
     padding: "0.5rem 0.625rem",
     font: "inherit",
+    lineHeight: 1.5,
   },
   hint: { fontSize: "0.6875rem", color: "var(--muted-foreground)", marginTop: "0.25rem" },
   deleteRow: { marginTop: "0.375rem" },
@@ -111,7 +115,7 @@ function NotesPanel({ threadId }: PluginThreadPanelProps) {
   const [text, setText] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -190,9 +194,14 @@ function NotesPanel({ threadId }: PluginThreadPanelProps) {
       {anchorLine(note.messageRole, note.anchorPreview)}
       <div
         style={styles.note}
-        onClick={() => setSelectedId(selectedId === note.id ? null : note.id)}
+        onClick={(event) => {
+          // Rendered markdown can contain links; clicking one should follow it
+          // rather than also toggling the delete button.
+          if ((event.target as HTMLElement).closest("a")) return;
+          setSelectedId(selectedId === note.id ? null : note.id);
+        }}
       >
-        {note.body}
+        <Markdown content={note.body} />
       </div>
       {selectedId === note.id && (
         <div style={styles.deleteRow}>
@@ -210,15 +219,17 @@ function NotesPanel({ threadId }: PluginThreadPanelProps) {
       0,
       <li key="draft">
         {anchorLine(draft.messageRole, draft.anchorPreview)}
-        <input
+        <textarea
           ref={inputRef}
           style={styles.input}
           value={text}
           maxLength={BODY_MAX}
-          placeholder="Your note…"
+          placeholder="Your note… (markdown)"
           onChange={(event) => setText(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter") {
+            // Enter inserts a newline so lists and fenced code can be typed;
+            // saving moves to the modifier chord.
+            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
               event.preventDefault();
               void save();
             } else if (event.key === "Escape") {
@@ -227,7 +238,7 @@ function NotesPanel({ threadId }: PluginThreadPanelProps) {
             }
           }}
         />
-        <div style={styles.hint}>Enter to save · Esc to discard</div>
+        <div style={styles.hint}>⌘/Ctrl + Enter to save · Esc to discard</div>
       </li>,
     );
   }

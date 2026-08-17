@@ -12,10 +12,21 @@ swept when the thread ends.
 ## Using it
 
 **In the app.** Hover any user or assistant message and click **Add note**
-(speech-bubble icon). A **Notes** tab opens in the thread's right panel with an
-input already anchored to that message. Enter saves, Esc discards. Click a saved
-note to reveal its **Delete note** button. Notes are listed in timeline order,
-so reading the panel top to bottom walks the thread.
+(speech-bubble icon). A **Notes** tab opens in the thread's right panel with a
+box already anchored to that message. **Cmd/Ctrl + Enter saves, Esc discards**
+— plain Enter inserts a newline, so lists and fenced code can be typed. Click a
+saved note to reveal its **Delete note** button. Notes are listed in timeline
+order, so reading the panel top to bottom walks the thread.
+
+Note bodies are **markdown**, rendered through bb's own chat renderer. Bodies
+are stored raw, so this is a display concern only — nothing to migrate, and
+turning it off is a one-line revert. The anchor excerpt above each note stays
+plain text on purpose (see *Storage*).
+
+The trade-off: rendering through the chat renderer means notes no longer read as
+typographically distinct from agent output. The distinction is carried
+structurally instead — accented left rule, card background, and the role label
+("You" / "via bb note").
 
 **From a script or hook.**
 
@@ -156,6 +167,11 @@ Two deliberate choices:
   duplicate timeline data on purpose: the panel renders without a second read,
   and if bb's completed-item truncation ever removes an event, the note still
   displays the text it was attached to instead of a bare integer.
+- **The anchor preview is rendered as plain text, not markdown**, even though
+  note bodies are markdown. It is a whitespace-collapsed 140-character
+  *fragment* of someone else's message, so a stray leading `#` or `-` would
+  render as a heading or list item. That reasoning applies to fragments only,
+  not to a note body you authored deliberately.
 
 ## Known limits
 

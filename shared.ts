@@ -10,5 +10,9 @@ export const PLUGIN_ID = "session-notes";
 /** Realtime channel for "this thread's notes changed" signals. */
 export const SIGNAL_CHANNEL = "notes";
 
-/** Longest note body we store. */
-export const BODY_MAX = 500;
+/**
+ * Longest note body we store. Roomy enough for a short list or a fenced code
+ * block now that notes accept multi-line markdown, while still keeping a note
+ * a note rather than a document.
+ */
+export const BODY_MAX = 2000;
