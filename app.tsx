@@ -92,6 +92,10 @@ const styles = {
     font: "inherit",
     lineHeight: 1.5,
   },
+  // Editing an existing note usually means working on text that is already
+  // there, so the edit textarea opens much taller than the compose one to keep
+  // the whole note visible without scrolling inside the field.
+  inputTall: { minHeight: "12rem" },
   hint: { fontSize: "0.6875rem", color: "var(--muted-foreground)", marginTop: "0.25rem" },
   actionRow: { marginTop: "0.375rem", display: "flex", gap: "0.375rem" },
   editButton: {
@@ -124,6 +128,7 @@ function NoteEditor({
   value,
   cancelLabel,
   autoFocus,
+  tall,
   textareaRef,
   onChange,
   onSave,
@@ -132,6 +137,7 @@ function NoteEditor({
   value: string;
   cancelLabel: string;
   autoFocus?: boolean;
+  tall?: boolean;
   textareaRef?: Ref<HTMLTextAreaElement>;
   onChange: (value: string) => void;
   onSave: () => void;
@@ -142,7 +148,7 @@ function NoteEditor({
       <textarea
         ref={textareaRef}
         autoFocus={autoFocus}
-        style={styles.input}
+        style={tall ? { ...styles.input, ...styles.inputTall } : styles.input}
         value={value}
         maxLength={BODY_MAX}
         placeholder="Your note… (markdown)"
@@ -274,6 +280,7 @@ function NotesPanel({ threadId }: PluginThreadPanelProps) {
           value={editText}
           cancelLabel="cancel"
           autoFocus
+          tall
           onChange={setEditText}
           onSave={() => void saveEdit(note.id)}
           onCancel={() => setEditingId(null)}
