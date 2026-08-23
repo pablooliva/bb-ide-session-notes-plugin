@@ -82,7 +82,7 @@ const styles = {
   },
   input: {
     width: "100%",
-    minHeight: "4.5rem",
+    minHeight: "9rem",
     resize: "vertical",
     background: "var(--background)",
     color: "var(--foreground)",
@@ -90,12 +90,16 @@ const styles = {
     borderRadius: "var(--radius)",
     padding: "0.5rem 0.625rem",
     font: "inherit",
+    // `font: inherit` alone takes the panel's base size, which is bigger
+    // than what <Markdown> renders a saved note at — so the text visibly
+    // shrank on save. Match the host token chat bodies use.
+    fontSize: "var(--text-sm)",
     lineHeight: 1.5,
   },
   // Editing an existing note usually means working on text that is already
   // there, so the edit textarea opens much taller than the compose one to keep
   // the whole note visible without scrolling inside the field.
-  inputTall: { minHeight: "12rem" },
+  inputTall: { minHeight: "24rem" },
   hint: { fontSize: "0.6875rem", color: "var(--muted-foreground)", marginTop: "0.25rem" },
   actionRow: { marginTop: "0.375rem", display: "flex", gap: "0.375rem" },
   editButton: {
