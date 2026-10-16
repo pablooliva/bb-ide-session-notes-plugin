@@ -14,6 +14,7 @@ import {
   useRpc,
   type PluginThreadPanelProps,
 } from "@get-bb/plugin-sdk/app";
+import { htmlToMarkdown } from "./paste";
 import type { rpcContract } from "./server";
 import { BODY_MAX, PLUGIN_ID, SIGNAL_CHANNEL } from "./shared";
 
@@ -157,6 +158,26 @@ function NoteEditor({
         maxLength={BODY_MAX}
         placeholder="Your note… (markdown)"
         onChange={(event) => onChange(event.target.value)}
+        onPaste={(event) => {
+          const markdown = htmlToMarkdown(event.clipboardData.getData("text/html"));
+          if (markdown === null) return; // no structure: the plain-text paste is fine
+          event.preventDefault();
+          const field = event.currentTarget;
+          const { selectionStart, selectionEnd } = field;
+          // maxLength only limits typing, not a programmatic insert.
+          const room = BODY_MAX - (field.value.length - (selectionEnd - selectionStart));
+          const insert = markdown.slice(0, Math.max(0, room));
+          // execCommand keeps the paste on the textarea's undo stack and fires
+          // the input event React listens for; the splice is the fallback.
+          if (!document.execCommand("insertText", false, insert)) {
+            const next = field.value.slice(0, selectionStart) + insert + field.value.slice(selectionEnd);
+            onChange(next);
+            requestAnimationFrame(() => {
+              const caret = selectionStart + insert.length;
+              field.setSelectionRange(caret, caret);
+            });
+          }
+        }}
         onKeyDown={(event) => {
           // Enter inserts a newline so lists and fenced code can be typed;
           // saving moves to the modifier chord.

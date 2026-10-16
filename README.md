@@ -24,6 +24,15 @@ are stored raw, so this is a display concern only — nothing to migrate, and
 turning it off is a one-line revert. The anchor excerpt above each note stays
 plain text on purpose (see *Storage*).
 
+**Pasting rendered output keeps its structure.** Copying a chat message puts
+HTML and a plain-text fallback on the clipboard, and a textarea only takes the
+plain text — which drops list markers, bold and code, and leaves single
+newlines that markdown renders as one paragraph. So the editor converts pasted
+HTML back to markdown (`paste.ts`): lists, nesting, headings, bold/italic,
+code, links, quotes and tables. bb's thread/path pills come back as their
+source text, not their truncated label. HTML with no block structure (a phrase,
+a code editor's styled spans) pastes as plain text, as before.
+
 The trade-off: rendering through the chat renderer means notes no longer read as
 typographically distinct from agent output. The distinction is carried
 structurally instead — accented left rule, card background, and the role label

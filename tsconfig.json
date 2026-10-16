@@ -19,6 +19,8 @@
     "server.ts",
     "app.tsx",
     "shared.ts",
-    "server.test.ts"
+    "paste.ts",
+    "server.test.ts",
+    "paste.test.ts"
   ]
 }
